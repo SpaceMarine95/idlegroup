@@ -1,0 +1,6 @@
+[submodule "beelzebub"]
+	path = beelzebub
+	url = https://github.com/SpaceMarine95/beelzebub-fork
+[submodule "violet"]
+	path = violet
+	url = https://github.com/SpaceMarine95/project-violet-fork
