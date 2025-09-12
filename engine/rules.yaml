@@ -28,6 +28,7 @@ vectors:
   ssh_syn_burst:
     sids: [100100]
     window_sec: 60
+    cooldown_sec: 20
     thresholds:
       - count: 1
         actions:
@@ -35,22 +36,16 @@ vectors:
             params: { persona: A }
           - type: RATELIMIT
             params: { cidr_from_src: "/32", pps: 60 }
-  shun:
-    enabled: true
-    queue_dir: "/app/shun_queue"
-    ban_ttl_sec: 3600
-    cooldown_sec: 900
+      - count: 50
+        actions:
+          - type: SHUN
+            params: { ttl_sec: 7200 }   # optional but nice for scanners
 
-  cowrie_bruteforce:
-    enabled: true
-    threshold: 10     # events
+  ssh_bruteforce:
     window_sec: 60
-    # (optional) fast demo:
-    # threshold: 5
-    # window_sec: 30
-
-  suricata_burst:
-    enabled: false    # flip to true later if you want IPS-lite
-    min_alerts: 10
-    window_sec: 45
-    severities: ["High","Critical"]
+    cooldown_sec: 60
+    thresholds:
+      - count: 10
+        actions:
+          - type: SHUN
+            params: { ttl_sec: 3600 }

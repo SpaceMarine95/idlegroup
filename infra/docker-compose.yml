@@ -105,21 +105,25 @@ services:
       - EVE_FILE=/var/log/suricata/eve.json
       - COWRIE_JSON=/var/log/cowrie/cowrie.json
       - SHUN_QUEUE=/app/shun_queue
+      - BZ_JSON=/var/log/beelzebub/events.jsonl
+      - VIOLET_JSON=/var/log/violet/defense.jsonl
     volumes:
       - suricata_logs:/var/log/suricata:ro
       - ../engine/rules.yaml:/app/rules.yaml:ro
+      - beelzebub_logs:/var/log/beelzebub:ro
+      - violet_logs:/var/log/violet:ro           
       - cowrie_logs:/var/log/cowrie:ro
       - shun_queue:/app/shun_queue
     networks: [ net_ctrl ]
-    depends_on: [ orchestrator, suricata, cowrie_a ]
+    depends_on: [ suricata, cowrie_a ]
   shun_apply:
     image: alpine:3.20
     privileged: true
     pid: "host"
     network_mode: "host"
-    command: ["/bin/sh","-lc","/guard/shun_apply.sh"]
+    command: ["/bin/sh","-lc","apk add --no-cache ipset iptables >/dev/null && cat /guard/shun_apply.sh | /bin/sh"]
     volumes:
-      - shun_queue:/queue:ro
+      - shun_queue:/queue
       - ./shun_apply.sh:/guard/shun_apply.sh:ro
     restart: unless-stopped
 
@@ -157,3 +161,5 @@ volumes:
   cowrie_keys:
   suricata_logs:
   shun_queue:
+  beelzebub_logs:
+  violet_logs:
