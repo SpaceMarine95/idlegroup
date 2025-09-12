@@ -1,0 +1,56 @@
+vectors:
+  web_lfi:
+    sids: [100001, 100002]
+    window_sec: 10
+    thresholds:
+      - count: 1
+        actions:
+          - type: FEATURE
+            params: { flag: {style: alt}, ttl_sec: 1800 }
+          - type: SPAWN
+            params: { template: dvwa_b }
+      - count: 3
+        actions:
+          - type: ASSIGN
+            params: { backend: dvwa_b_up, ttl_sec: 7200 }
+
+  web_sqli:
+    sids: [100003]
+    window_sec: 30
+    thresholds:
+      - count: 3
+        actions:
+          - type: SPAWN
+            params: { template: dvwa_b }
+          - type: ASSIGN
+            params: { backend: dvwa_b_up, ttl_sec: 7200 }
+
+  ssh_syn_burst:
+    sids: [100100]
+    window_sec: 60
+    thresholds:
+      - count: 1
+        actions:
+          - type: SSH_ROTATE
+            params: { persona: A }
+          - type: RATELIMIT
+            params: { cidr_from_src: "/32", pps: 60 }
+  shun:
+    enabled: true
+    queue_dir: "/app/shun_queue"
+    ban_ttl_sec: 3600
+    cooldown_sec: 900
+
+  cowrie_bruteforce:
+    enabled: true
+    threshold: 10     # events
+    window_sec: 60
+    # (optional) fast demo:
+    # threshold: 5
+    # window_sec: 30
+
+  suricata_burst:
+    enabled: false    # flip to true later if you want IPS-lite
+    min_alerts: 10
+    window_sec: 45
+    severities: ["High","Critical"]

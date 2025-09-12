@@ -1,0 +1,142 @@
+{
+  "uid": "sec-logs",
+  "title": "Security – Suricata & Cowrie",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "browser",
+  "tags": ["security", "loki"],
+  "templating": {
+    "list": [
+      {
+        "name": "sid",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "grafana" },
+        "query": "label_values({job=\"suricata\"}, sid)",
+        "includeAll": true,
+        "multi": true
+      },
+      {
+        "name": "sensor",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "grafana" },
+        "query": "label_values({job=\"cowrie\"}, sensor)",
+        "includeAll": true,
+        "multi": true
+      },
+      {
+        "name": "eventid",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "grafana" },
+        "query": "label_values({job=\"cowrie\"}, eventid)",
+        "includeAll": true,
+        "multi": true
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Suricata alerts (last 5m)",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({job=\"suricata\", event_type=\"alert\"}[5m]))",
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "grafana" }
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Alert rate by SID",
+      "gridPos": { "x": 6, "y": 0, "w": 18, "h": 8 },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "lineInterpolation": "smooth" } } },
+      "targets": [
+        {
+          "expr": "sum by (sid)(rate(({job=\"suricata\", event_type=\"alert\"}[1m])))",
+          "legendFormat": "SID {{sid}}",
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "grafana" }
+        }
+      ]
+    },
+    {
+      "type": "bargauge",
+      "title": "Top dest ports (1h)",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "topk(10, count_over_time(({job=\"suricata\", event_type=\"alert\"} | json | line_format '{{.dest_port}}')[1h]))",
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "grafana" }
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Recent Suricata alerts",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "options": { "showHeader": true },
+      "targets": [
+        {
+          "expr": "{job=\"suricata\", event_type=\"alert\"} | json | line_format 'sid={{.sid}} {{.signature}} {{.src_ip}} -> {{.dest_ip}}:{{.dest_port}}'",
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "grafana" }
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Cowrie login.failed rate (by sensor)",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (sensor)(rate(({job=\"cowrie\"} | json | eventid=\"cowrie.login.failed\")[1m]))",
+          "legendFormat": "sensor {{sensor}}",
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "grafana" }
+        }
+      ]
+    },
+    {
+      "type": "bargauge",
+      "title": "Cowrie top src_ip (1h)",
+      "gridPos": { "x": 12, "y": 12, "w": 6, "h": 8 },
+      "targets": [
+        {
+          "expr": "topk(10, count_over_time(({job=\"cowrie\", eventid=~\"$eventid\", sensor=~\"$sensor\"} | json | line_format '{{.src_ip}}')[1h]))",
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "grafana" }
+        }
+      ]
+    },
+    {
+      "type": "bargauge",
+      "title": "Cowrie top usernames (1h)",
+      "gridPos": { "x": 18, "y": 12, "w": 6, "h": 8 },
+      "targets": [
+        {
+          "expr": "topk(10, count_over_time(({job=\"cowrie\", eventid=~\"$eventid\", sensor=~\"$sensor\"} | json | line_format '{{.username}}')[1h]))",
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "grafana" }
+        }
+      ]
+    },
+    {
+      "type": "logs",
+      "title": "Security logs stream",
+      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 10 },
+      "options": { "showLabels": true, "showTime": true },
+      "targets": [
+        {
+          "expr": "{job=~\"suricata|cowrie\"}",
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "grafana" }
+        }
+      ]
+    }
+  ]
+}

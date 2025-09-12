@@ -1,0 +1,159 @@
+networks:
+  net_dmz:
+    ipam: { config: [ { subnet: 10.20.0.0/16 } ] }
+  net_ctrl:
+    ipam: { config: [ { subnet: 10.30.0.0/16 } ] }
+
+services:
+  guardrails:
+    image: alpine:3.20
+    privileged: true
+    pid: "host"
+    network_mode: "host"
+    command: ["/bin/sh","-lc","apk add --no-cache iptables ip6tables ipset >/dev/null && cat /guard/apply.sh | /bin/sh && tail -f /dev/null"]
+    volumes:
+      - ./guardrails/apply.sh:/guard/apply.sh:ro
+    restart: unless-stopped
+  
+  cowrie_logs_init:
+    image: alpine:3.20
+    user: "0:0"
+    command: ["/bin/sh","-lc","mkdir -p /mnt/cowrie && chmod 775 /mnt/cowrie && chown -R 1000:1000 /mnt/cowrie"]
+    volumes:
+      - cowrie_logs:/mnt/cowrie
+    restart: "no"
+  nginx:
+    container_name: nginx
+    image: nginx:1.25
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d/decoy.conf:/etc/nginx/conf.d/decoy.conf:ro
+      - ./nginx/conf.d/blank.conf:/etc/nginx/conf.d/default.conf:ro 
+      - ./nginx/vars:/etc/nginx/vars
+      - ./nginx/overlays:/overlays:ro
+      - nginx_logs:/var/log/nginx
+      - ./nginx/stream.d:/etc/nginx/stream.d:ro
+    ports: [ "80:80", "2222:2222"]
+    networks: [ net_dmz ]
+    depends_on:
+      cowrie_a:
+        condition: service_started
+      dvwa_a:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "nginx -t"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  dvwa_a:
+    image: ghcr.io/digininja/dvwa:latest
+    platform: linux/amd64
+    environment: [ "DB_SERVER=mariadb_a","DB_DATABASE=dvwa","DB_USER=dvwa","DB_PASSWORD=dvwa" ]
+    networks: [ net_dmz ]
+    depends_on: [ mariadb_a ]
+
+  mariadb_a:
+    image: mariadb:10.11
+    environment: [ "MYSQL_ROOT_PASSWORD=rootpass","MYSQL_DATABASE=dvwa","MYSQL_USER=dvwa","MYSQL_PASSWORD=dvwa" ]
+    volumes: [ mariadb_a:/var/lib/mysql ]
+    networks: [ net_dmz ]
+
+  dvwa_b:
+    image: ghcr.io/digininja/dvwa:latest
+    platform: linux/amd64
+    environment: [ "DB_SERVER=mariadb_b","DB_DATABASE=dvwa","DB_USER=dvwa","DB_PASSWORD=dvwa" ]
+    networks: [ net_dmz ]
+    depends_on: [ mariadb_b ]
+
+  mariadb_b:
+    image: mariadb:10.11
+    environment: [ "MYSQL_ROOT_PASSWORD=rootpass","MYSQL_DATABASE=dvwa","MYSQL_USER=dvwa","MYSQL_PASSWORD=dvwa" ]
+    volumes: [ mariadb_b:/var/lib/mysql ]
+    networks: [ net_dmz ]
+
+  orchestrator:
+    build: ../orchestrator
+    environment:
+      - NGINX_CONTAINER=nginx
+      - NGINX_VAR_DIR=/etc/nginx/vars
+      - COMPOSE_FILE=/work/infra/docker-compose.yml
+    volumes: [ "..:/work" ]
+    networks: [ net_ctrl ]
+    ports: [ "8080:8080" ]
+    depends_on: [ nginx ]
+
+  suricata:
+    image: jasonish/suricata:7.0.11
+    depends_on: [ nginx ]
+    network_mode: "service:nginx" 
+    cap_add: [NET_ADMIN, NET_RAW, SYS_NICE]
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      SURICATA_OPTIONS: "-c /etc/suricata/suricata.yaml -i eth0"
+    volumes:
+      - ./suricata:/etc/suricata
+      # - ./logs/suricata:/var/log/suricata
+      - suricata_logs:/var/log/suricata
+    restart: unless-stopped
+
+  engine:
+    build: ../engine
+    environment:
+      - ORCH_URL=http://orchestrator:8080
+      - EVE_FILE=/var/log/suricata/eve.json
+      - COWRIE_JSON=/var/log/cowrie/cowrie.json
+      - SHUN_QUEUE=/app/shun_queue
+    volumes:
+      - suricata_logs:/var/log/suricata:ro
+      - ../engine/rules.yaml:/app/rules.yaml:ro
+      - cowrie_logs:/var/log/cowrie:ro
+      - shun_queue:/app/shun_queue
+    networks: [ net_ctrl ]
+    depends_on: [ orchestrator, suricata, cowrie_a ]
+  shun_apply:
+    image: alpine:3.20
+    privileged: true
+    pid: "host"
+    network_mode: "host"
+    command: ["/bin/sh","-lc","/guard/shun_apply.sh"]
+    volumes:
+      - shun_queue:/queue:ro
+      - ./shun_apply.sh:/guard/shun_apply.sh:ro
+    restart: unless-stopped
+
+  cowrie_a:
+    image: cowrie/cowrie:latest
+    environment:
+      - COWRIE_TELNET_ENABLED=no
+      - COWRIE_AUTH_AUTH_CLASS=UserDB
+      - COWRIE_AUTH_USERDB_PATH=/cowrie/cowrie-git/etc/userdb.txt
+      - COWRIE_AUTHENTICATION_AUTH_CLASS=UserDB
+      - COWRIE_AUTHENTICATION_USERDB_PATH=/cowrie/cowrie-git/etc/userdb.txt
+    volumes:
+      - ../decoys/cowrie/cowrie-a.cfg:/cowrie/cowrie-git/etc/cowrie.cfg:ro
+      - ../decoys/cowrie/userdb_a.txt:/cowrie/cowrie-git/etc/userdb.txt:ro
+      - cowrie_logs:/cowrie/var/log/cowrie
+      - cowrie_keys:/cowrie/etc/ssh
+    networks: [ net_dmz ]
+    ports: [ "2223:2222" ]
+    
+
+  cowrie_b:
+    image: cowrie/cowrie:latest
+    environment: [ "COWRIE_TELNET_ENABLED=no" ]
+    volumes:
+      - ../decoys/cowrie/cowrie-b.cfg:/cowrie/cowrie.cfg:ro
+      - cowrie_logs_b:/cowrie/var/log/cowrie
+    networks: [ net_dmz ]
+
+volumes:
+  mariadb_a:
+  mariadb_b:
+  nginx_logs:
+  cowrie_logs:
+  cowrie_logs_b:
+  cowrie_keys:
+  suricata_logs:
+  shun_queue:

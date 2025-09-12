@@ -1,0 +1,8 @@
+upstream cowrie_ssh { server cowrie_a:2222; } # service name resolves on net_dmz
+
+server {
+    listen 2222;             # nginx listens on 2222
+    proxy_pass cowrie_ssh;   # forward to cowrie
+    proxy_connect_timeout 10s;
+    proxy_timeout 300s;
+}

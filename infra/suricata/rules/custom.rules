@@ -1,0 +1,9 @@
+# =========================
+# TT Demo / DVWA Custom Rules
+# =========================
+
+alert tcp any any -> any 80 (msg:"TT raw GET seen"; content:"GET "; depth:4; classtype:policy-violation; sid:1000500; rev:1;)
+alert http any any -> any 80 (msg:"TT http.method=GET"; flow:to_server; http.method; content:"GET"; nocase; classtype:policy-violation; sid:1000501; rev:2;)
+alert http any any -> any 80 (msg:"TT LFI /etc/passwd (decoded)"; flow:to_server; http.uri; content:"/etc/passwd"; nocase; classtype:web-application-attack; sid:1000601; rev:1;)
+alert http any any -> any 80 (msg:"TT LFI %2fetc%2fpasswd (raw)"; flow:to_server; http.uri.raw; content:"%2fetc%2fpasswd"; nocase; classtype:web-application-attack; sid:1000603; rev:1;)
+alert tcp any any -> $HOME_NET 2222 (msg:"Cowrie SSH SYN burst via nginx"; flags:S; flow:to_server; threshold:type both, track by_src, count 15, seconds 60; classtype:attempted-recon; sid:1000100; rev:2;)

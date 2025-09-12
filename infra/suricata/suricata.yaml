@@ -1,0 +1,60 @@
+%YAML 1.1
+---
+pcap:
+  - interface: eth0
+    checksum-checks: no
+  - interface: lo
+    checksum-checks: no
+
+vars:
+  address-groups:
+    HOME_NET: "[10.20.0.0/16]" # Your DMZ
+
+app-layer:
+  protocols:
+    http:
+      enabled: yes
+      ports: [80,81,8000,8080]
+
+default-rule-path: /etc/suricata/rules
+rule-files:
+  # - local.rules
+  - custom.rules
+
+outputs:
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: /var/log/suricata/eve.json
+      types:
+        - alert:
+        - http:
+            extended: yes       # richer http fields
+        - dns:
+        - tls:
+        - flow:
+
+
+
+
+# af-packet:
+#   - interface: br-7dd6d1e4edb9
+#     cluster-id: 99
+#     cluster-type: cluster_flow
+#     defrag: yes
+#     use-mmap: yes
+#     ring-size: 200000
+
+# af-packet:
+#   - interface: eth0
+#     cluster-type: cluster_flow
+#     defrag: yes
+#     use-mmap: yes
+#     ring-size: 200000
+#     tpacket-v3: yes
+#   - interface: lo
+#     cluster-type: cluster_flow
+#     defrag: yes
+#     use-mmap: yes
+#     ring-size: 200000
+#     tpacket-v3: yes
