@@ -15,6 +15,9 @@ def is_failed_login(ev: dict) -> tuple[bool, str | None, float]:
 
 def stream_cowrie(cowrie_json: str):
     for ev in tail_jsonl(cowrie_json):
+        if ev is None:
+            yield None
+            continue
         ok, src, ts = is_failed_login(ev)
         if not ok:
             continue

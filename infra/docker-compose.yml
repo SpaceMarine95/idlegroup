@@ -18,9 +18,14 @@ services:
   cowrie_logs_init:
     image: alpine:3.20
     user: "0:0"
-    command: ["/bin/sh","-lc","mkdir -p /mnt/cowrie && chmod 775 /mnt/cowrie && chown -R 1000:1000 /mnt/cowrie"]
+    command:
+      - /bin/sh
+      - -lc
+      - |
+        chown -R 999:999 /mnt && chmod -R 775 /mnt
+        ls -lah /mnt
     volumes:
-      - cowrie_logs:/mnt/cowrie
+      - cowrie_logs:/mnt
     restart: "no"
   nginx:
     container_name: nginx
@@ -118,14 +123,23 @@ services:
     depends_on: [ suricata, cowrie_a ]
   shun_apply:
     image: alpine:3.20
-    privileged: true
-    pid: "host"
-    network_mode: "host"
-    command: ["/bin/sh","-lc","apk add --no-cache ipset iptables >/dev/null && cat /guard/shun_apply.sh | /bin/sh"]
+    entrypoint: ["/bin/sh","-lc","/guard/shun_apply.sh"]
     volumes:
       - shun_queue:/queue
       - ./shun_apply.sh:/guard/shun_apply.sh:ro
+    pid: host
+    network_mode: host
+    cap_add: ["NET_ADMIN"]
+    environment:
+      - IPSET_NAME=shun
+      - BLOCK_TTL=3600
+      - QUEUE_DIR=/queue
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL","apk add --no-cache ipset >/dev/null 2>&1 || true; ipset list shun >/dev/null 2>&1"]
+      interval: 20s
+      timeout: 3s
+      retries: 5
 
   cowrie_a:
     image: cowrie/cowrie:latest
@@ -156,10 +170,13 @@ volumes:
   mariadb_a:
   mariadb_b:
   nginx_logs:
-  cowrie_logs:
+  cowrie_logs:          # <- make this an alias to the existing volume
+    external: true
+    name: infra_cowrie_logs
   cowrie_logs_b:
   cowrie_keys:
   suricata_logs:
   shun_queue:
+    name: shun_queue
   beelzebub_logs:
   violet_logs:

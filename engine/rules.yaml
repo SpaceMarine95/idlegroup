@@ -42,10 +42,15 @@ vectors:
             params: { ttl_sec: 7200 }   # optional but nice for scanners
 
   ssh_bruteforce:
-    window_sec: 60
-    cooldown_sec: 60
+    source: cowrie                    # <— if your engine supports this; otherwise omit
+    eventid: cowrie.login.failed      # <— filter key for Cowrie stream
+    key: src_ip                       # <— aggregate key (field present in your sample)
+    window_sec: 120
+    cooldown_sec: 120                 # don't re-fire immediately for the same IP
     thresholds:
-      - count: 10
+      - count: 6
         actions:
+          - type: TAG
+            params: { labels: [ssh, bruteforce] }
           - type: SHUN
-            params: { ttl_sec: 3600 }
+            params: { ttl_sec: 900 } # 15m; change to taste

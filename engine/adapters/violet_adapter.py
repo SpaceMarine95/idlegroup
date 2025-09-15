@@ -3,19 +3,16 @@ import time
 from .common import tail_jsonl, iso_to_epoch
 
 def stream_violet(path: str):
-    """
-    Expect JSONL lines like:
-    {"timestamp":"2025-09-12T02:34:56Z","src_id":"agent-42","threat":"prompt_injection","tool":"delete_all","severity":"high"}
-    """
     for ev in tail_jsonl(path):
+        if ev is None:
+            yield None
+            continue
         src = ev.get("src_ip") or ev.get("src_id") or "agent"
         ts = iso_to_epoch(ev.get("timestamp"), time.time())
-        # You can split vectors per threat if you like
-        vector = "llm_attack"
         yield {
             "ts": ts,
-            "vector": vector,
-            "src_ip": str(src),  # keep string if it's an agent id
+            "vector": "llm_attack",
+            "src_ip": str(src),
             "sid": None,
             "meta": ev,
         }
